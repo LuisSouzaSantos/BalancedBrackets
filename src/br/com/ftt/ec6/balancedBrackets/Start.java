@@ -5,19 +5,24 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class Start {
 	
-	private final static List<String> OPEN_BRACKET_LIST = new ArrayList<String>(Arrays.asList("{", "[", "("));
-	private final static List<String> CLOSE_BRACKET_LIST = new ArrayList<String>(Arrays.asList("}", "]", ")"));
-	private static Map<String, String> OPEN_CLOSE_BRACKET_LIST = new HashMap<String, String>();
-	private static List<String> openBracket = new ArrayList<String>();
+	private final static String[] OPEN_BRACKET_LIST = {"{", "[", "("};
+	private final static String[] CLOSE_BRACKET_LIST = {"}", "]", ")"};
 	
-	public static void main(String[] args){
+	private static Set<Bracket> OPEN_BRACKET_SET_LIST = new HashSet<Bracket>();
+	private static Set<Bracket> CLOSE_BRACKET_SET_LIST = new HashSet<Bracket>();
+	
+	private static Map<Bracket, Bracket> OPEN_CLOSE_BRACKET_LIST = new HashMap<Bracket, Bracket>();
+	private static List<String> openBracketStack = new ArrayList<String>();
+	
+	public static void main(String[] args) throws Exception{
 		
 		if(args.length <= 0 || args[0].isEmpty()) {
 			System.out.println("ERROR: arg not found");
@@ -25,29 +30,36 @@ public class Start {
 			return;
 		}
 		
-		loadopenCloseBracketList();
+		loadOpenAndCloseBracketList(OPEN_BRACKET_LIST, CLOSE_BRACKET_LIST);
 		
 		File file = new File(args[0]);
-		String fileInTextFormat ="";
+		String textFile  ="";
 		try {
-			fileInTextFormat = readFile(file);
+			textFile = readFile(file);
 		} catch (IOException e1) {
 			System.out.println("Arquivo não encontrado");
 			System.out.println("Encerrando programa........");
 			return;
 		}
 		
-		char[] charArray = fileInTextFormat.toCharArray();
+		String text = formatText(textFile);
+		
+		char[] charArray = text.toCharArray();
 		
 		File newFile;
 		try {
 			for (char c : charArray) {
-				if(isOpenBracket(c)) {
-					stack(c, true);
-				}else {
-					stack(c, false);
+				if(isValidBracket(c)) {
+					if(isOpenBracket(c)) {
+						stack(c, true);
+					}else {
+						stack(c, false);
+					}
 				}
 			}
+			
+			if(openBracketStack.size() > 0) { throw new Exception("INVALID_FILE"); }
+			
 			newFile = new File(args[0]+"-check.txt");
 			System.out.println("Arquivo válido");
 		}catch(Exception e) {
@@ -70,37 +82,76 @@ public class Start {
 		return allString;
 	}
 	
-	
-	public static boolean isOpenBracket(char c) {
-		return OPEN_BRACKET_LIST.contains(String.valueOf(c));
-	}
-	
 	public static void stack(char c, boolean stackUp) throws Exception {
 		if(stackUp) {
-			openBracket.add(Character.toString(c));
+			openBracketStack.add(Character.toString(c));
 		}else {
-			int openBracketListSize = openBracket.size();
+			int openBracketListSize = openBracketStack.size();
 			
 			if(openBracketListSize <= 0) {throw new Exception("INVALID_FILE");}
 			
-			String lastOpenBracket = openBracket.get(openBracketListSize-1);
+			String lastOpenBracket = openBracketStack.get(openBracketListSize-1);
 			
 			if(isOppositeBracket(lastOpenBracket, Character.toString(c))) {
-				openBracket.remove(openBracketListSize-1);
+				openBracketStack.remove(openBracketListSize-1);
 			}else {
 				throw new Exception("INVALID_FILE");
 			}
 		}
 	}
 	
-	public static boolean isOppositeBracket(String openBracket, String closeBracket) {
-		String closeBracketAccordingList = OPEN_CLOSE_BRACKET_LIST.get(openBracket);
-		return closeBracketAccordingList.equals(closeBracket);
+	public static String formatText(String text) {
+		return text.replaceAll("\\s+","");
 	}
 	
-	public static void loadopenCloseBracketList() {		
-		for (int i = 0; i < OPEN_BRACKET_LIST.size(); i++) {
-			OPEN_CLOSE_BRACKET_LIST.put(OPEN_BRACKET_LIST.get(i), CLOSE_BRACKET_LIST.get(i));
+	public static boolean isValidBracket(char c) {
+		return isOpenBracket(c) || isCloseBracket(c);
+	}
+	
+	public static boolean isOpenBracket(char c) {
+		String symbol = String.valueOf(c);
+		return OPEN_BRACKET_SET_LIST.stream()
+					.anyMatch(bracket -> bracket.getSymbol().equals(symbol));
+	}
+	
+	public static boolean isCloseBracket(char c) {
+		String symbol = String.valueOf(c);
+		return CLOSE_BRACKET_SET_LIST.stream()
+					.anyMatch(bracket -> bracket.getSymbol().equals(symbol));
+	}
+	
+	public static boolean isOppositeBracket(String openBracket, String closeBracket) {
+		Bracket closeBracketObject = null;
+		
+		for (Map.Entry keyAndValue : OPEN_CLOSE_BRACKET_LIST.entrySet()) {
+			Bracket bracket = (Bracket) keyAndValue.getKey();
+		
+			if(bracket.getSymbol().equals(openBracket)) {
+				closeBracketObject = (Bracket) keyAndValue.getValue();
+			}
+		}
+		
+		if(closeBracketObject == null) { return false; }
+		
+		return closeBracketObject.getSymbol().equals(closeBracket);
+	}
+	
+	public static void loadOpenAndCloseBracketList(String[] openBrackets, String[] closeBrackets) throws Exception {
+		
+		if(openBrackets.length != closeBrackets.length) {
+			throw new Exception("Open or close bracket list is wrong");
+		}
+		
+		for (int i = 0; i < openBrackets.length; i++) {
+			OPEN_CLOSE_BRACKET_LIST.put(new Bracket(openBrackets[i], true), new Bracket(closeBrackets[i], false));
+		}
+		
+		for (String string : openBrackets) {
+			OPEN_BRACKET_SET_LIST.add(new Bracket(string, true));
+		}
+		
+		for (String string : closeBrackets) {
+			CLOSE_BRACKET_SET_LIST.add(new Bracket(string, false));
 		}
 	}
 
